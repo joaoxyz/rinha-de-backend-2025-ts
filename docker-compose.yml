@@ -1,0 +1,19 @@
+services:
+  rinha-api-1:
+    build: .
+    ports:
+      - "9999:3000"
+    networks:
+      - payment-processor
+    environment:
+      - PAYMENT_PROCESSOR_URL_DEFAULT=http://payment-processor-default:8080
+      - PAYMENT_PROCESSOR_URL_FALLBACK=http://payment-processor-fallback:8080
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: "350MB"
+
+networks:
+  payment-processor:
+    external: true

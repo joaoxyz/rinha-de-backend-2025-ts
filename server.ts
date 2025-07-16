@@ -1,3 +1,5 @@
+import { RedisClient } from "bun";
+
 interface Payment {
   correlationId: string,
   amount: number,
@@ -7,8 +9,7 @@ interface Payment {
 const url_default = process.env.PAYMENT_PROCESSOR_URL_DEFAULT
 const url_fallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK
 
-let totalReq = 0;
-let totalAmount = 0;
+const redis = new RedisClient()
 
 Bun.serve({
   port: 3000,
@@ -25,31 +26,45 @@ Bun.serve({
         });
 
         if (response.status == 200) {
-          totalReq += 1
-          totalAmount += payment.amount
+          // totalReq += 1
+          // totalAmount += payment.amount
+          await redis.hincrby("default", "totalRequests", 1)
+          await redis.hincrbyfloat("default", "totalAmount", payment.amount)
         }
 
         return response
       }
     },
     "/payments-summary": {
-      GET: () => {
+      GET: async () => {
+        const defaultFields = await redis.hmget("default", ["totalRequests", "totalAmount"]);
+        const fallbackFields = await redis.hmget("fallback", ["totalRequests", "totalAmount"]);
         return Response.json({
           default: {
-            totalAmount: totalAmount,
-            totalRequests: totalReq
+            totalRequests: defaultFields[0],
+            totalAmount: defaultFields[1],
           },
           fallback: {
-            totalAmount: 0,
-            totalRequests: 0
+            totalRequests: fallbackFields[0],
+            totalAmount: fallbackFields[1],
           }
         })
       }
     },
     "/purge-payments": {
-      POST: () => {
-        totalReq = 0
-        totalAmount = 0
+      POST: async () => {
+        await redis.hmset("default", [
+          "totalRequests",
+          "0",
+          "totalAmount",
+          "0",
+        ])
+        await redis.hmset("fallback", [
+          "totalRequests",
+          "0",
+          "totalAmount",
+          "0",
+        ])
         return Response.json({message: "All payments purged"}, {status: 200})
       }
     }

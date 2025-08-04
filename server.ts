@@ -47,23 +47,6 @@ Bun.serve({
         })
       }
     },
-    "/purge-payments": {
-      POST: async () => {
-        await redis.hmset("default", [
-          "totalRequests",
-          "0",
-          "totalAmount",
-          "0",
-        ])
-        await redis.hmset("fallback", [
-          "totalRequests",
-          "0",
-          "totalAmount",
-          "0",
-        ])
-        return Response.json({message: "All payments purged"}, {status: 200})
-      }
-    }
   },
   error(error) {
     return Response.json({error: error.message}, { status: 500 });

@@ -1,4 +1,4 @@
-import { RedisClient } from "bun";
+import { redis } from "bun";
 
 interface Payment {
   correlationId: string,
@@ -8,8 +8,6 @@ interface Payment {
 
 const url_default = process.env.PAYMENT_PROCESSOR_URL_DEFAULT
 const url_fallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK
-
-const redis = new RedisClient()
 
 Bun.serve({
   port: 3000,
@@ -26,8 +24,6 @@ Bun.serve({
         });
 
         if (response.status == 200) {
-          // totalReq += 1
-          // totalAmount += payment.amount
           await redis.hincrby("default", "totalRequests", 1)
           await redis.hincrbyfloat("default", "totalAmount", payment.amount)
         }
@@ -70,7 +66,6 @@ Bun.serve({
     }
   },
   error(error) {
-    // console.error(error);
     return Response.json({error: error.message}, { status: 500 });
   }
 });

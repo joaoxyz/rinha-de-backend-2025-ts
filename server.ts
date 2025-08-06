@@ -1,13 +1,33 @@
 import { redis } from "bun";
+import type { Payment } from "./types";
 
-interface Payment {
-  correlationId: string,
-  amount: number,
-  requestedAt?: string
+if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR_URL_FALLBACK) {
+  process.exit(1)
 }
 
 const url_default = process.env.PAYMENT_PROCESSOR_URL_DEFAULT
 const url_fallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK
+
+async function chooseProcessor(): Promise<string> {
+  const defaultHealthData = await redis.hmget("health:default", ["totalRequests", "totalAmount"]);
+  const fallbackHealthData = await redis.hmget("health:fallback", ["totalRequests", "totalAmount"]);
+
+  const defaultHealth = {
+    failing: defaultHealthData[0],
+    minResponseTime: defaultHealthData[1],
+  }
+
+  const fallbackHealth = {
+    failing: fallbackHealthData[0],
+    minResponseTime: fallbackHealthData[1],
+  }
+
+  if (defaultHealth.failing) {
+    return url_fallback
+  }
+
+  return url_default
+}
 
 Bun.serve({
   port: 3000,
@@ -17,15 +37,17 @@ Bun.serve({
         const payment = await req.json() as Payment
         payment.requestedAt = new Date().toISOString()
 
-        const response = await fetch(`${url_default}/payments`, {
+        const processor_url = chooseProcessor()
+
+        const response = await fetch(`${processor_url}/payments`, {
           method: "POST",
           body: JSON.stringify(payment),
           headers: { "Content-Type": "application/json" },
         });
 
         if (response.status == 200) {
-          await redis.hincrby("default", "totalRequests", 1)
-          await redis.hincrbyfloat("default", "totalAmount", payment.amount)
+          await redis.hincrby("summary:default", "totalRequests", 1)
+          await redis.hincrbyfloat("summary:default", "totalAmount", payment.amount)
         }
 
         return response
@@ -33,16 +55,16 @@ Bun.serve({
     },
     "/payments-summary": {
       GET: async () => {
-        const defaultFields = await redis.hmget("default", ["totalRequests", "totalAmount"]);
-        const fallbackFields = await redis.hmget("fallback", ["totalRequests", "totalAmount"]);
+        const defaultSummary = await redis.hmget("summary:default", ["totalRequests", "totalAmount"]);
+        const fallbackSummary = await redis.hmget("summary:fallback", ["totalRequests", "totalAmount"]);
         return Response.json({
           default: {
-            totalRequests: defaultFields[0],
-            totalAmount: defaultFields[1],
+            totalRequests: defaultSummary[0],
+            totalAmount: defaultSummary[1],
           },
           fallback: {
-            totalRequests: fallbackFields[0],
-            totalAmount: fallbackFields[1],
+            totalRequests: fallbackSummary[0],
+            totalAmount: fallbackSummary[1],
           }
         })
       }

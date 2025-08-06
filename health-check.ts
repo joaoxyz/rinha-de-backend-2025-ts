@@ -2,21 +2,21 @@ import { redis } from "bun";
 import type { ServiceHealth } from "./types";
 
 if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR_URL_FALLBACK) {
-  process.exit(1)
+  process.exit(1);
 }
 
-const url_default = process.env.PAYMENT_PROCESSOR_URL_DEFAULT
-const url_fallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK
+const url_default = process.env.PAYMENT_PROCESSOR_URL_DEFAULT;
+const url_fallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK;
 
 async function healthCheck(url: string): Promise<ServiceHealth | null> {
-  const response = await fetch(`${url}/payments/service-health`)
+  const response = await fetch(`${url}/payments/service-health`);
 
   if (response.status != 200) {
-    return null
+    return null;
   }
 
-  const service_health = await response.json() as ServiceHealth
-  return service_health
+  const service_health = await response.json() as ServiceHealth;
+  return service_health;
 }
 
 async function saveToRedis() {
@@ -31,7 +31,7 @@ async function saveToRedis() {
       health_default.failing,
       "minResponseTime",
       health_default.minResponseTime.toString(),
-    ])
+    ]);
   }
 
   if (health_fallback) {
@@ -40,15 +40,17 @@ async function saveToRedis() {
       health_fallback.failing,
       "minResponseTime",
       health_fallback.minResponseTime.toString(),
-    ])
+    ]);
   }
 }
 
 await saveToRedis();
 
+// setTimeout loop to guarantee request order
+// see https://developer.mozilla.org/en-US/docs/Web/API/Window/setInterval#usage_notes
 (function loop() {
   setTimeout(() => {
-    saveToRedis()
-    loop()
-  }, 5500)
-})()
+    saveToRedis();
+    loop();
+  }, 5500);
+})();

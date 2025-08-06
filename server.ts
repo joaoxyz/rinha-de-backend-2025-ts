@@ -2,11 +2,11 @@ import { redis } from "bun";
 import type { Payment } from "./types";
 
 if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR_URL_FALLBACK) {
-  process.exit(1)
+  process.exit(1);
 }
 
-const url_default = process.env.PAYMENT_PROCESSOR_URL_DEFAULT
-const url_fallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK
+const url_default = process.env.PAYMENT_PROCESSOR_URL_DEFAULT;
+const url_fallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK;
 
 async function chooseProcessor(): Promise<string> {
   const defaultHealthData = await redis.hmget("health:default", ["totalRequests", "totalAmount"]);
@@ -15,18 +15,18 @@ async function chooseProcessor(): Promise<string> {
   const defaultHealth = {
     failing: defaultHealthData[0],
     minResponseTime: defaultHealthData[1],
-  }
+  };
 
   const fallbackHealth = {
     failing: fallbackHealthData[0],
     minResponseTime: fallbackHealthData[1],
-  }
+  };
 
   if (defaultHealth.failing) {
-    return url_fallback
+    return url_fallback;
   }
 
-  return url_default
+  return url_default;
 }
 
 Bun.serve({
@@ -34,10 +34,10 @@ Bun.serve({
   routes: {
     "/payments": {
       POST: async req => {
-        const payment = await req.json() as Payment
-        payment.requestedAt = new Date().toISOString()
+        const payment = await req.json() as Payment;
+        payment.requestedAt = new Date().toISOString();
 
-        const processor_url = chooseProcessor()
+        const processor_url = chooseProcessor();
 
         const response = await fetch(`${processor_url}/payments`, {
           method: "POST",
@@ -46,11 +46,11 @@ Bun.serve({
         });
 
         if (response.status == 200) {
-          await redis.hincrby("summary:default", "totalRequests", 1)
-          await redis.hincrbyfloat("summary:default", "totalAmount", payment.amount)
+          await redis.hincrby("summary:default", "totalRequests", 1);
+          await redis.hincrbyfloat("summary:default", "totalAmount", payment.amount);
         }
 
-        return response
+        return response;
       }
     },
     "/payments-summary": {
@@ -66,7 +66,7 @@ Bun.serve({
             totalRequests: fallbackSummary[0],
             totalAmount: fallbackSummary[1],
           }
-        })
+        });
       }
     },
   },

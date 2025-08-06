@@ -5,8 +5,8 @@ if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR
   process.exit(1);
 }
 
-const url_default = process.env.PAYMENT_PROCESSOR_URL_DEFAULT;
-const url_fallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK;
+const urlDefault = process.env.PAYMENT_PROCESSOR_URL_DEFAULT;
+const urlFallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK;
 
 async function healthCheck(url: string): Promise<ServiceHealth | null> {
   const response = await fetch(`${url}/payments/service-health`);
@@ -15,31 +15,31 @@ async function healthCheck(url: string): Promise<ServiceHealth | null> {
     return null;
   }
 
-  const service_health = await response.json() as ServiceHealth;
-  return service_health;
+  const serviceHealth = await response.json() as ServiceHealth;
+  return serviceHealth;
 }
 
 async function saveToRedis() {
-  const [health_default, health_fallback] = await Promise.all([
-    healthCheck(url_default),
-    healthCheck(url_fallback),
+  const [healthDefault, healthFallback] = await Promise.all([
+    healthCheck(urlDefault),
+    healthCheck(urlFallback),
   ]);
 
-  if (health_default) {
+  if (healthDefault) {
     await redis.hmset("health:default", [
       "failing",
-      health_default.failing,
+      healthDefault.failing,
       "minResponseTime",
-      health_default.minResponseTime.toString(),
+      healthDefault.minResponseTime.toString(),
     ]);
   }
 
-  if (health_fallback) {
+  if (healthFallback) {
     await redis.hmset("health:fallback", [
       "failing",
-      health_fallback.failing,
+      healthFallback.failing,
       "minResponseTime",
-      health_fallback.minResponseTime.toString(),
+      healthFallback.minResponseTime.toString(),
     ]);
   }
 }

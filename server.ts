@@ -5,8 +5,8 @@ if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR
   process.exit(1);
 }
 
-const url_default = process.env.PAYMENT_PROCESSOR_URL_DEFAULT;
-const url_fallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK;
+const urlDefault = process.env.PAYMENT_PROCESSOR_URL_DEFAULT;
+const urlFallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK;
 
 async function chooseProcessor(): Promise<string> {
   const defaultHealthData = await redis.hmget("health:default", ["totalRequests", "totalAmount"]);
@@ -23,10 +23,10 @@ async function chooseProcessor(): Promise<string> {
   };
 
   if (defaultHealth.failing) {
-    return url_fallback;
+    return urlFallback;
   }
 
-  return url_default;
+  return urlDefault;
 }
 
 Bun.serve({
@@ -37,9 +37,9 @@ Bun.serve({
         const payment = await req.json() as Payment;
         payment.requestedAt = new Date().toISOString();
 
-        const processor_url = chooseProcessor();
+        const processorUrl = chooseProcessor();
 
-        const response = await fetch(`${processor_url}/payments`, {
+        const response = await fetch(`${processorUrl}/payments`, {
           method: "POST",
           body: JSON.stringify(payment),
           headers: { "Content-Type": "application/json" },

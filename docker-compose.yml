@@ -1,6 +1,7 @@
 services:
   rinha-api-1:
-    build: .
+    build:
+      dockerfile: Dockerfile.api
     networks:
       - payment-processor
       - app-network
@@ -10,6 +11,7 @@ services:
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
+      - health-check
     deploy:
       resources:
         limits:
@@ -17,7 +19,8 @@ services:
           memory: "50MB"
 
   rinha-api-2:
-    build: .
+    build:
+      dockerfile: Dockerfile.api
     networks:
       - payment-processor
       - app-network
@@ -27,6 +30,7 @@ services:
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
+      - health-check
     deploy:
       resources:
         limits:
@@ -47,8 +51,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.2"
-          memory: "50MB"
+          cpus: "0.1"
+          memory: "25MB"
 
   redis:
     image: redis:alpine
@@ -63,6 +67,24 @@ services:
           limits:
             cpus: "0.3"
             memory: "200MB"
+
+  health-check:
+    build:
+      dockerfile: Dockerfile.healthcheck
+    networks:
+      - payment-processor
+      - app-network
+    environment:
+      - PAYMENT_PROCESSOR_URL_DEFAULT=http://payment-processor-default:8080
+      - PAYMENT_PROCESSOR_URL_FALLBACK=http://payment-processor-fallback:8080
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: "25MB"
 
 networks:
   app-network:

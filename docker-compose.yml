@@ -56,7 +56,6 @@ services:
 
   redis:
     image: redis:alpine
-    # restart: always
     volumes:
       - ./redis-startup.sh:/usr/local/bin/entrypoint.sh
     entrypoint: ["/usr/local/bin/entrypoint.sh"]

@@ -4,7 +4,7 @@
 redis-server --save "" &
 
 # Wait for Redis to be ready
-sleep 5
+sleep 1
 
 # Set summary keys
 redis-cli HSET summary:default totalRequests 0 totalAmount 0

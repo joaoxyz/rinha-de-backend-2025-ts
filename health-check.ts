@@ -1,5 +1,5 @@
 import { redis } from "bun";
-import type { ServiceHealth } from "./types";
+import { ServiceHealth } from "./types";
 
 if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR_URL_FALLBACK) {
   process.exit(1);
@@ -15,7 +15,7 @@ async function healthCheck(url: string): Promise<ServiceHealth | null> {
     return null;
   }
 
-  const serviceHealth = await response.json() as ServiceHealth;
+  const serviceHealth = ServiceHealth.parse(await response.json());
   return serviceHealth;
 }
 
@@ -28,7 +28,7 @@ async function saveToRedis() {
   if (healthDefault) {
     await redis.hmset("health:default", [
       "failing",
-      healthDefault.failing,
+      healthDefault.failing.toString(),
       "minResponseTime",
       healthDefault.minResponseTime.toString(),
     ]);
@@ -37,7 +37,7 @@ async function saveToRedis() {
   if (healthFallback) {
     await redis.hmset("health:fallback", [
       "failing",
-      healthFallback.failing,
+      healthFallback.failing.toString(),
       "minResponseTime",
       healthFallback.minResponseTime.toString(),
     ]);

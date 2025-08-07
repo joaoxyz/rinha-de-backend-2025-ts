@@ -1,5 +1,5 @@
 import { redis } from "bun";
-import type { Payment } from "./types";
+import { ServiceHealth, Payment, Processor } from "./types";
 
 if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR_URL_FALLBACK) {
   process.exit(1);
@@ -8,37 +8,50 @@ if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR
 const urlDefault = process.env.PAYMENT_PROCESSOR_URL_DEFAULT;
 const urlFallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK;
 
-async function chooseProcessor(): Promise<string> {
-  const defaultHealthData = await redis.hmget("health:default", ["totalRequests", "totalAmount"]);
-  const fallbackHealthData = await redis.hmget("health:fallback", ["totalRequests", "totalAmount"]);
+// TODO: improve logic for chosing processor
+async function chooseProcessor(): Promise<Processor> {
+  const defaultHealthData = await redis.hmget("health:default", ["failing", "minResponseTime"]);
+  const fallbackHealthData = await redis.hmget("health:fallback", ["failing", "minResponseTime"]);
 
-  const defaultHealth = {
-    failing: defaultHealthData[0],
+  const defaultHealth = ServiceHealth.parse({
+    failing: (defaultHealthData[0] === "true"),
     minResponseTime: defaultHealthData[1],
-  };
+  });
 
-  const fallbackHealth = {
-    failing: fallbackHealthData[0],
+  const fallbackHealth = ServiceHealth.parse({
+    failing: (fallbackHealthData[0] === "true"),
     minResponseTime: fallbackHealthData[1],
-  };
+  });
 
   if (defaultHealth.failing) {
-    return urlFallback;
+    return Processor.Fallback;
   }
 
-  return urlDefault;
+  return Processor.Default;
 }
 
 Bun.serve({
   port: 3000,
   routes: {
     "/payments": {
-      POST: async req => {
-        const payment = await req.json() as Payment;
+      POST: async request => {
+        const payment = Payment.parse(await request.json());
+        const processor = await chooseProcessor();
+
+        let processorUrl : string | undefined = undefined;
+        switch (processor) {
+          case Processor.Default:
+            processorUrl = urlDefault;
+            break;
+          case Processor.Fallback:
+            processorUrl = urlFallback;
+            break;
+          default:
+            processorUrl = undefined as never;
+        }
+
+        // Add timestamp to request body
         payment.requestedAt = new Date().toISOString();
-
-        const processorUrl = chooseProcessor();
-
         const response = await fetch(`${processorUrl}/payments`, {
           method: "POST",
           body: JSON.stringify(payment),
@@ -46,15 +59,21 @@ Bun.serve({
         });
 
         if (response.status == 200) {
-          await redis.hincrby("summary:default", "totalRequests", 1);
-          await redis.hincrbyfloat("summary:default", "totalAmount", payment.amount);
+          await redis.hincrby(`summary:${processor}`, "totalRequests", 1);
+          await redis.hincrbyfloat(`summary:${processor}`, "totalAmount", payment.amount);
         }
 
         return response;
       }
     },
     "/payments-summary": {
-      GET: async () => {
+      GET: async request => {
+        const searchParams = new URL(request.url).searchParams;
+
+        // TODO: check if keys exist
+        const from = searchParams.get("from");
+        const to = searchParams.get("to");
+
         const defaultSummary = await redis.hmget("summary:default", ["totalRequests", "totalAmount"]);
         const fallbackSummary = await redis.hmget("summary:fallback", ["totalRequests", "totalAmount"]);
         return Response.json({

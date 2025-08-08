@@ -78,12 +78,12 @@ Bun.serve({
         const fallbackSummary = await redis.hmget("summary:fallback", ["totalRequests", "totalAmount"]);
         return Response.json({
           default: {
-            totalRequests: defaultSummary[0],
-            totalAmount: defaultSummary[1],
+            totalRequests: Number(defaultSummary[0]),
+            totalAmount: Math.floor(Number(defaultSummary[1]) * 100) / 100,
           },
           fallback: {
-            totalRequests: fallbackSummary[0],
-            totalAmount: fallbackSummary[1],
+            totalRequests: Number(fallbackSummary[0]),
+            totalAmount: Math.floor(Number(fallbackSummary[1]) * 100) / 100,
           }
         });
       }

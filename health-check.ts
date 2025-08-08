@@ -52,5 +52,5 @@ await saveToRedis();
   setTimeout(() => {
     saveToRedis();
     loop();
-  }, 5500);
+  }, 5100);
 })();

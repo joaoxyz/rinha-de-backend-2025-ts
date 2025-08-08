@@ -1,5 +1,5 @@
 import { redis } from "bun";
-import { ServiceHealth, Payment, Processor } from "./types";
+import { ServiceHealth, Payment, Processor, type PaymentWithoutId } from "./types";
 
 if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR_URL_FALLBACK) {
   process.exit(1);
@@ -10,8 +10,10 @@ const urlFallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK;
 
 // TODO: improve logic for chosing processor
 async function chooseProcessor(): Promise<Processor> {
-  const defaultHealthData = await redis.hmget("health:default", ["failing", "minResponseTime"]);
-  const fallbackHealthData = await redis.hmget("health:fallback", ["failing", "minResponseTime"]);
+  const [defaultHealthData, fallbackHealthData] = await Promise.all([
+    redis.hmget("health:default", ["failing", "minResponseTime"]),
+    redis.hmget("health:fallback", ["failing", "minResponseTime"]),
+  ]);
 
   const defaultHealth = ServiceHealth.parse({
     failing: (defaultHealthData[0] === "true"),
@@ -38,7 +40,7 @@ Bun.serve({
         const payment = Payment.parse(await request.json());
         const processor = await chooseProcessor();
 
-        let processorUrl : string | undefined = undefined;
+        let processorUrl: string | undefined = undefined;
         switch (processor) {
           case Processor.Default:
             processorUrl = urlDefault;
@@ -59,8 +61,11 @@ Bun.serve({
         });
 
         if (response.status == 200) {
-          await redis.hincrby(`summary:${processor}`, "totalRequests", 1);
-          await redis.hincrbyfloat(`summary:${processor}`, "totalAmount", payment.amount);
+          // await redis.hincrby(`summary:${processor}`, "totalRequests", 1);
+          // await redis.hincrbyfloat(`summary:${processor}`, "totalAmount", payment.amount);
+
+          // new command
+          await redis.send("JSON.SET", [`payment:${processor}:${payment.correlationId}`, "$", JSON.stringify(payment as PaymentWithoutId)]);
         }
 
         return response;
@@ -74,6 +79,7 @@ Bun.serve({
         const from = searchParams.get("from");
         const to = searchParams.get("to");
 
+        // ft.aggregate command probably
         const defaultSummary = await redis.hmget("summary:default", ["totalRequests", "totalAmount"]);
         const fallbackSummary = await redis.hmget("summary:fallback", ["totalRequests", "totalAmount"]);
         return Response.json({

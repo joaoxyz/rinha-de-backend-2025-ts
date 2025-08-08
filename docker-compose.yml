@@ -16,7 +16,7 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: "50MB"
+          memory: "30MB"
 
   rinha-api-2:
     build:
@@ -35,7 +35,7 @@ services:
       resources:
         limits:
           cpus: "0.5"
-          memory: "50MB"
+          memory: "30MB"
 
   nginx:
     image: nginx:latest
@@ -52,10 +52,10 @@ services:
       resources:
         limits:
           cpus: "0.1"
-          memory: "25MB"
+          memory: "20MB"
 
   redis:
-    image: redis:alpine
+    image: redis/redis-stack-server:latest
     volumes:
       - ./redis-startup.sh:/usr/local/bin/entrypoint.sh
     entrypoint: ["/usr/local/bin/entrypoint.sh"]
@@ -65,7 +65,7 @@ services:
         resources:
           limits:
             cpus: "0.3"
-            memory: "200MB"
+            memory: "250MB"
 
   health-check:
     build:
@@ -83,7 +83,7 @@ services:
       resources:
         limits:
           cpus: "0.1"
-          memory: "25MB"
+          memory: "20MB"
 
 networks:
   app-network:

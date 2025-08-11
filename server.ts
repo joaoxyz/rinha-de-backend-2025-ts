@@ -1,5 +1,5 @@
 import { redis } from "bun";
-import { ServiceHealth, Payment, Processor, type PaymentWithoutId } from "./types";
+import { ServiceHealth, Payment, Processor } from "./types";
 
 if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR_URL_FALLBACK) {
   process.exit(1);
@@ -61,11 +61,14 @@ Bun.serve({
         });
 
         if (response.status == 200) {
-          // await redis.hincrby(`summary:${processor}`, "totalRequests", 1);
-          // await redis.hincrbyfloat(`summary:${processor}`, "totalAmount", payment.amount);
-
-          // new command
-          await redis.send("JSON.SET", [`payment:${processor}:${payment.correlationId}`, "$", JSON.stringify(payment as PaymentWithoutId)]);
+          await redis.hmset("payment", [
+            payment.correlationId,
+            JSON.stringify({
+              amount: payment.amount,
+              requestedAt: payment.requestedAt,
+              processor: processor,
+            })
+          ]);
         }
 
         return response;
@@ -75,23 +78,49 @@ Bun.serve({
       GET: async request => {
         const searchParams = new URL(request.url).searchParams;
 
-        // TODO: check if keys exist
         const from = searchParams.get("from");
         const to = searchParams.get("to");
 
-        // ft.aggregate command probably
-        const defaultSummary = await redis.hmget("summary:default", ["totalRequests", "totalAmount"]);
-        const fallbackSummary = await redis.hmget("summary:fallback", ["totalRequests", "totalAmount"]);
-        return Response.json({
+        const paymentList = await redis.hgetall("payment");
+
+        if (!paymentList) {
+          return Response.json({message: "Could not retrieve payments from database."}, {status: 404});
+        }
+
+        const summary = {
           default: {
-            totalRequests: Number(defaultSummary[0]),
-            totalAmount: Math.floor(Number(defaultSummary[1]) * 100) / 100,
+            totalRequests: 0,
+            totalAmount: 0,
           },
           fallback: {
-            totalRequests: Number(fallbackSummary[0]),
-            totalAmount: Math.floor(Number(fallbackSummary[1]) * 100) / 100,
+            totalRequests: 0,
+            totalAmount: 0,
           }
-        });
+        };
+
+        for (const rawPaymentData of Object.values(paymentList)) {
+          const payment = JSON.parse(rawPaymentData);
+          if (!from || Date.parse(from) > Date.parse(payment.requestedAt)) {
+            continue;
+          }
+
+          if (!to || Date.parse(to) < Date.parse(payment.requestedAt)) {
+            continue;
+          }
+
+          switch (payment.processor) {
+            case Processor.Default:
+              summary.default.totalAmount += payment.amount
+              summary.default.totalRequests += 1
+              break;
+            case Processor.Fallback:
+              summary.fallback.totalAmount += payment.amount
+              summary.fallback.totalRequests += 1
+              break;
+          }
+        }
+
+        return Response.json(summary);
       }
     },
   },

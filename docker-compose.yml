@@ -55,10 +55,8 @@ services:
           memory: "20MB"
 
   redis:
-    image: redis/redis-stack-server:latest
-    volumes:
-      - ./redis-startup.sh:/usr/local/bin/entrypoint.sh
-    entrypoint: ["/usr/local/bin/entrypoint.sh"]
+    image: redis:alpine
+    command: redis-server --save ""
     networks:
       - app-network
     deploy:

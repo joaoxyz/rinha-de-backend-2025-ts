@@ -8,7 +8,6 @@ if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR
 const urlDefault = process.env.PAYMENT_PROCESSOR_URL_DEFAULT;
 const urlFallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK;
 
-// TODO: improve logic for chosing processor
 async function chooseProcessor(): Promise<Processor> {
   const [defaultHealthData, fallbackHealthData] = await Promise.all([
     redis.hmget("health:default", ["failing", "minResponseTime"]),
@@ -25,7 +24,15 @@ async function chooseProcessor(): Promise<Processor> {
     minResponseTime: fallbackHealthData[1],
   });
 
+  if (defaultHealth.failing && fallbackHealth.failing) {
+    throw new Error("Payment processors unavaliable. Try again later.");
+  }
+
   if (defaultHealth.failing) {
+    return Processor.Fallback;
+  }
+
+  if (fallbackHealth.minResponseTime <= defaultHealth.minResponseTime/2) {
     return Processor.Fallback;
   }
 

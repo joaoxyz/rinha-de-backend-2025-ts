@@ -15,13 +15,6 @@ export const Payment = z.object({
 
 export type Payment = z.infer<typeof Payment>;
 
-export const Summary = z.object({
-  totalRequests: z.coerce.number().int(),
-  totalAmount: z.coerce.number(),
-});
-
-export type Summary = z.infer<typeof Summary>;
-
 export enum Processor {
   Default = "default",
   Fallback = "fallback",

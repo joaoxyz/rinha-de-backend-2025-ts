@@ -61,51 +61,59 @@ Bun.serve({
         const payment = Payment.parse(await request.json());
         // const processor = await chooseProcessor();
 
-        let processor: Processor | undefined;
-        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-          try {
-              processor = await chooseProcessor();
-              break;
-          } catch (error) {
-              if (attempt == MAX_RETRIES) {
-                return Response.json({message: "bla"}, {status: 500})
-              }
-              await new Promise(resolve => setTimeout(resolve, 300));
-          }
+        try {
+          await redis.lpush("payment_queue", JSON.stringify(payment));
+        } catch (error) {
+          return Response.json({message: "Payment could not be processed."}, {status: 500});
         }
 
-        let processorUrl: string | undefined = undefined;
-        switch (processor) {
-          case Processor.Default:
-            processorUrl = urlDefault;
-            break;
-          case Processor.Fallback:
-            processorUrl = urlFallback;
-            break;
-          default:
-            processorUrl = undefined as never;
-        }
+        return Response.json(null, { status: 204 });
 
-        // Add timestamp to request body
-        payment.requestedAt = new Date().toISOString();
-        const response = await fetch(`${processorUrl}/payments`, {
-          method: "POST",
-          body: JSON.stringify(payment),
-          headers: { "Content-Type": "application/json" },
-        });
+        // let processor: Processor | undefined;
+        // for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        //   try {
+        //       processor = await chooseProcessor();
+        //       break;
+        //   } catch (error) {
+        //       if (attempt == MAX_RETRIES) {
+        //         return Response.json({message: "bla"}, {status: 500})
+        //       }
+        //       await new Promise(resolve => setTimeout(resolve, 300));
+        //   }
+        // }
 
-        if (response.status == 200) {
-          await redis.hmset("payment", [
-            payment.correlationId,
-            JSON.stringify({
-              amount: payment.amount,
-              requestedAt: payment.requestedAt,
-              processor: processor,
-            })
-          ]);
-        }
+        // let processorUrl: string | undefined = undefined;
+        // switch (processor) {
+        //   case Processor.Default:
+        //     processorUrl = urlDefault;
+        //     break;
+        //   case Processor.Fallback:
+        //     processorUrl = urlFallback;
+        //     break;
+        //   default:
+        //     processorUrl = undefined as never;
+        // }
 
-        return response;
+        // // Add timestamp to request body
+        // payment.requestedAt = new Date().toISOString();
+        // const response = await fetch(`${processorUrl}/payments`, {
+        //   method: "POST",
+        //   body: JSON.stringify(payment),
+        //   headers: { "Content-Type": "application/json" },
+        // });
+
+        // if (response.status == 200) {
+        //   await redis.hmset("payment", [
+        //     payment.correlationId,
+        //     JSON.stringify({
+        //       amount: payment.amount,
+        //       requestedAt: payment.requestedAt,
+        //       processor: processor,
+        //     })
+        //   ]);
+        // }
+
+        // return response;
       }
     },
     "/payments-summary": {

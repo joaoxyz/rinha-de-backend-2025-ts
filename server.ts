@@ -1,9 +1,19 @@
 import { redis } from "bun";
 import { ServiceHealth, Payment, Processor } from "./types";
 
-if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR_URL_FALLBACK) {
+const config = {
+  urls: {
+    default: process.env.PAYMENT_PROCESSOR_URL_DEFAULT,
+    fallback: process.env.PAYMENT_PROCESSOR_URL_FALLBACK,
+  }
+};
+
+if (!config.urls.default || !config.urls.fallback) {
+  console.error("Missing payment processor URL environment variables.");
   process.exit(1);
 }
+
+const MAX_RETRIES = 3;
 
 const urlDefault = process.env.PAYMENT_PROCESSOR_URL_DEFAULT;
 const urlFallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK;
@@ -32,6 +42,10 @@ async function chooseProcessor(): Promise<Processor> {
     return Processor.Fallback;
   }
 
+  if (defaultHealth.minResponseTime <= 200) {
+    return Processor.Default;
+  }
+
   if (fallbackHealth.minResponseTime <= defaultHealth.minResponseTime/2) {
     return Processor.Fallback;
   }
@@ -45,7 +59,20 @@ Bun.serve({
     "/payments": {
       POST: async request => {
         const payment = Payment.parse(await request.json());
-        const processor = await chooseProcessor();
+        // const processor = await chooseProcessor();
+
+        let processor: Processor | undefined;
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          try {
+              processor = await chooseProcessor();
+              break;
+          } catch (error) {
+              if (attempt == MAX_RETRIES) {
+                return Response.json({message: "bla"}, {status: 500})
+              }
+              await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        }
 
         let processorUrl: string | undefined = undefined;
         switch (processor) {
@@ -117,12 +144,12 @@ Bun.serve({
 
           switch (payment.processor) {
             case Processor.Default:
-              summary.default.totalAmount += payment.amount
-              summary.default.totalRequests += 1
+              summary.default.totalAmount += payment.amount;
+              summary.default.totalRequests += 1;
               break;
             case Processor.Fallback:
-              summary.fallback.totalAmount += payment.amount
-              summary.fallback.totalRequests += 1
+              summary.fallback.totalAmount += payment.amount;
+              summary.fallback.totalRequests += 1;
               break;
           }
         }

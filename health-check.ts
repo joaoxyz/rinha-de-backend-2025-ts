@@ -1,12 +1,17 @@
 import { redis } from "bun";
 import { ServiceHealth } from "./types";
 
-if (!process.env.PAYMENT_PROCESSOR_URL_DEFAULT || !process.env.PAYMENT_PROCESSOR_URL_FALLBACK) {
+const config = {
+  urls: {
+    default: process.env.PAYMENT_PROCESSOR_URL_DEFAULT,
+    fallback: process.env.PAYMENT_PROCESSOR_URL_FALLBACK,
+  }
+};
+
+if (!config.urls.default || !config.urls.fallback) {
+  console.error("Missing payment processor URL environment variables.");
   process.exit(1);
 }
-
-const urlDefault = process.env.PAYMENT_PROCESSOR_URL_DEFAULT;
-const urlFallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK;
 
 async function healthCheck(url: string): Promise<ServiceHealth | null> {
   const response = await fetch(`${url}/payments/service-health`);
@@ -21,8 +26,8 @@ async function healthCheck(url: string): Promise<ServiceHealth | null> {
 
 async function saveToRedis() {
   const [healthDefault, healthFallback] = await Promise.all([
-    healthCheck(urlDefault),
-    healthCheck(urlFallback),
+    healthCheck(config.urls.default),
+    healthCheck(config.urls.fallback),
   ]);
 
   if (healthDefault) {

@@ -13,53 +13,12 @@ if (!config.urls.default || !config.urls.fallback) {
   process.exit(1);
 }
 
-const MAX_RETRIES = 3;
-
-const urlDefault = process.env.PAYMENT_PROCESSOR_URL_DEFAULT;
-const urlFallback = process.env.PAYMENT_PROCESSOR_URL_FALLBACK;
-
-async function chooseProcessor(): Promise<Processor> {
-  const [defaultHealthData, fallbackHealthData] = await Promise.all([
-    redis.hmget("health:default", ["failing", "minResponseTime"]),
-    redis.hmget("health:fallback", ["failing", "minResponseTime"]),
-  ]);
-
-  const defaultHealth = ServiceHealth.parse({
-    failing: (defaultHealthData[0] === "true"),
-    minResponseTime: defaultHealthData[1],
-  });
-
-  const fallbackHealth = ServiceHealth.parse({
-    failing: (fallbackHealthData[0] === "true"),
-    minResponseTime: fallbackHealthData[1],
-  });
-
-  if (defaultHealth.failing && fallbackHealth.failing) {
-    throw new Error("Payment processors unavaliable. Try again later.");
-  }
-
-  if (defaultHealth.failing) {
-    return Processor.Fallback;
-  }
-
-  if (defaultHealth.minResponseTime <= 200) {
-    return Processor.Default;
-  }
-
-  if (fallbackHealth.minResponseTime <= defaultHealth.minResponseTime/2) {
-    return Processor.Fallback;
-  }
-
-  return Processor.Default;
-}
-
 Bun.serve({
   port: 3000,
   routes: {
     "/payments": {
       POST: async request => {
         const payment = Payment.parse(await request.json());
-        // const processor = await chooseProcessor();
 
         try {
           await redis.lpush("payment_queue", JSON.stringify(payment));
@@ -67,53 +26,7 @@ Bun.serve({
           return Response.json({message: "Payment could not be processed."}, {status: 500});
         }
 
-        return Response.json(null, { status: 204 });
-
-        // let processor: Processor | undefined;
-        // for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        //   try {
-        //       processor = await chooseProcessor();
-        //       break;
-        //   } catch (error) {
-        //       if (attempt == MAX_RETRIES) {
-        //         return Response.json({message: "bla"}, {status: 500})
-        //       }
-        //       await new Promise(resolve => setTimeout(resolve, 300));
-        //   }
-        // }
-
-        // let processorUrl: string | undefined = undefined;
-        // switch (processor) {
-        //   case Processor.Default:
-        //     processorUrl = urlDefault;
-        //     break;
-        //   case Processor.Fallback:
-        //     processorUrl = urlFallback;
-        //     break;
-        //   default:
-        //     processorUrl = undefined as never;
-        // }
-
-        // // Add timestamp to request body
-        // payment.requestedAt = new Date().toISOString();
-        // const response = await fetch(`${processorUrl}/payments`, {
-        //   method: "POST",
-        //   body: JSON.stringify(payment),
-        //   headers: { "Content-Type": "application/json" },
-        // });
-
-        // if (response.status == 200) {
-        //   await redis.hmset("payment", [
-        //     payment.correlationId,
-        //     JSON.stringify({
-        //       amount: payment.amount,
-        //       requestedAt: payment.requestedAt,
-        //       processor: processor,
-        //     })
-        //   ]);
-        // }
-
-        // return response;
+        return Response.json(null, { status: 202 });
       }
     },
     "/payments-summary": {

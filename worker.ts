@@ -97,7 +97,6 @@ async function startWorker() {
         const success = await processPaymentJob(payment);
         if (!success) {
           await redis.lpush("payment_queue", rawJob);
-          // await new Promise(resolve => setTimeout(resolve, 5000));
         }
       }
     } catch (error) {

@@ -49,7 +49,7 @@ async function saveToRedis() {
   }
 }
 
-await saveToRedis();
+saveToRedis();
 
 // setTimeout loop to guarantee request order
 // see https://developer.mozilla.org/en-US/docs/Web/API/Window/setInterval#usage_notes

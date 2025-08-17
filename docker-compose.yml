@@ -1,7 +1,6 @@
 services:
   api-1:
-    build:
-      dockerfile: Dockerfile.api
+    image: joaoxyz/rinha-api:v1
     networks:
       - payment-processor
       - app-network
@@ -19,8 +18,7 @@ services:
           memory: "75MB"
 
   api-2:
-    build:
-      dockerfile: Dockerfile.api
+    image: joaoxyz/rinha-api:v1
     networks:
       - payment-processor
       - app-network
@@ -37,9 +35,25 @@ services:
           cpus: "0.4"
           memory: "75MB"
 
+  health-check:
+    image: joaoxyz/rinha-health-check:v1
+    networks:
+      - payment-processor
+      - app-network
+    environment:
+      - PAYMENT_PROCESSOR_URL_DEFAULT=http://payment-processor-default:8080
+      - PAYMENT_PROCESSOR_URL_FALLBACK=http://payment-processor-fallback:8080
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: "25MB"
+
   worker:
-    build:
-      dockerfile: Dockerfile.worker
+    image: joaoxyz/rinha-worker:v1
     networks:
       - payment-processor
       - app-network
@@ -83,24 +97,6 @@ services:
           limits:
             cpus: "0.1"
             memory: "50MB"
-
-  health-check:
-    build:
-      dockerfile: Dockerfile.healthcheck
-    networks:
-      - payment-processor
-      - app-network
-    environment:
-      - PAYMENT_PROCESSOR_URL_DEFAULT=http://payment-processor-default:8080
-      - PAYMENT_PROCESSOR_URL_FALLBACK=http://payment-processor-fallback:8080
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-    deploy:
-      resources:
-        limits:
-          cpus: "0.1"
-          memory: "25MB"
 
 networks:
   app-network:

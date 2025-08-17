@@ -1,5 +1,5 @@
 import { redis } from "bun";
-import { ServiceHealth, Payment, Processor } from "./types";
+import { Payment, Processor } from "./types";
 
 const config = {
   urls: {
